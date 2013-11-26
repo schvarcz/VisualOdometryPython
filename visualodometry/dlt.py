@@ -15,10 +15,9 @@ def DLT(coords,points):
     return decompCameraMatrix(P)
 
 def decompCameraMatrix(P):    
-    print P.shape
     r,q = rq(P[:,:3])
     s = np.diag([np.sign(-r[0][0]),np.sign(-r[1][1]),np.sign(r[2][2])])
     k = np.dot(r,s)
     r = np.dot(s,q)
     t = np.matrix(k).I*P[:,3]
-    return k,r,t
+    return k,r,t,P

@@ -2,6 +2,7 @@
 from cv2 import *
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import subplots,cm
+import numpy as np
 
 from visualodometry.VisualOdometry import VisualOdometry
 
@@ -9,15 +10,15 @@ from visualodometry.VisualOdometry import VisualOdometry
 # Configurações #
 #################
 path = "dataset_libviso/"
-foco = 8.941981e+02
-distancia_cameras =.57073824147 
+foco = 6.452401e+02
+distancia_cameras = .57073824147 
 confianca = 10000
 pathSalvar = "salvar_1/"
 
 
 visual = VisualOdometry(foco,distancia_cameras,confianca)
 
-plt.ion()
+#plt.ion()
 #f, (ax1,ax2) = subplots(2,1)
 
 for i in range(373):
@@ -27,7 +28,14 @@ for i in range(373):
     #Mostra resultados
     print "Features finais... ", i
     imshow("Video",visual.currentFrame)
-    imshow("Distancia",visual.currentDist)
+
+    aux = visual.currentDist
+    aux[aux == float('inf')] = 0
+    aux[aux < 0.] = 0
+    #print aux.min(),aux.max()
+    aux= aux/(aux.max()*0.10)
+    #print aux.min(),aux.max()
+    imshow("Distancia",aux)
     k = waitKey(33) & 255
     if k == 27:
         break;

@@ -14,9 +14,9 @@ foco = 6.452401e+02
 distancia_cameras = .57073824147 
 confianca = 10000
 pathSalvar = "salvar_1/"
+centroProjecao = (6.601406e+02,2.611004e+02)
 
-
-visual = VisualOdometry(foco,distancia_cameras,confianca)
+visual = VisualOdometry(foco,distancia_cameras,confianca,centroProjecao)
 
 #plt.ion()
 #f, (ax1,ax2) = subplots(2,1)

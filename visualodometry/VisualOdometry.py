@@ -7,11 +7,13 @@ import csv
 
 
 class VisualOdometry(object):
-    def __init__(self,foco,distancia_cameras,confianca):
+
+    def __init__(self,foco,distancia_cameras,confianca,centroProjecao=None):
 
         self.foco = foco
         self.distancia_cameras = distancia_cameras
         self.confianca = confianca
+        self.centroProjecao = centroProjecao
 
         self.detector = FeatureDetector_create("SIFT")
         self.descriptor = DescriptorExtractor_create("SIFT")
@@ -152,6 +154,7 @@ class VisualOdometry(object):
         return sumErr/len(coords)
 
 
+    # Esse método deveria estar fora da classe. Como uma util
     def computeInliers(self,P,coords,points):
         inliers = []
         for i in xrange(len(coords)):
@@ -164,8 +167,10 @@ class VisualOdometry(object):
                 inliers.append(i)
         return inliers
 
+
+    # Esse método deveria estar fora da classe. Como uma util
     def computeRANSACDLT(self,coords,points):
-        minError = 10000000
+        minError = float("inf")
         best = None
         for i in range(1,50):
             # Computa o DLT com uma amostra de pontos
@@ -176,7 +181,7 @@ class VisualOdometry(object):
 
             # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
             err = self.computeProjectionError(coords,points,P)
-            # print 'err({0}): {1}'.format(i,err)
+
             if err < minError:
                 minError = err
                 best = [k,r,t,P]
@@ -236,8 +241,8 @@ class VisualOdometry(object):
                 p = (int(skp[idx[i]].pt[0]),int(skp[idx[i]].pt[1]))
                 disp = abs(oldPLeft[0] - oldPRight[0])
                 if (featureDist[i]<self.confianca) and (featureDistStereo[i]<self.confianca) and (disp != 0):
-                    x = (oldPLeft[0]-6.601406e+02)*self.distancia_cameras/disp
-                    y = (oldPLeft[1]-2.611004e+02)*self.distancia_cameras/disp
+                    x = (oldPLeft[0]-self.centroProjecao[0])*self.distancia_cameras/disp
+                    y = (oldPLeft[1]-self.centroProjecao[1])*self.distancia_cameras/disp
                     z = self.foco*self.distancia_cameras/disp
                     coords.append([x,y,z,1.])
                     points.append(p)
@@ -246,8 +251,8 @@ class VisualOdometry(object):
 
 
     def compute(self,imgl,imgr):
-        if self.centro_imagem == None:
-            self.centro_imagem = imgl.shape[0]/2.,imgl.shape[1]/2.
+        if self.centroProjecao == None:
+            self.centroProjecao = imgl.shape[1]/2.,imgl.shape[0]/2.
 
 
         #Move a janela das features

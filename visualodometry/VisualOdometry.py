@@ -1,6 +1,7 @@
 from cv2 import *
 import numpy as np
 from dlt import *
+from egomotion import *
 import random
 import csv
 
@@ -232,6 +233,11 @@ class VisualOdometry(object):
         if self.centro_imagem == None:
             self.centro_imagem = imgl.shape[0]/2.,imgl.shape[1]/2.
 
+        K=[]
+        K.append([-self.foco, 0., 6.601406e+02])
+        K.append([0, -self.foco, 2.611004e+02])
+        K.append([0., 0., 1.])
+        K = np.matrix(K)
 
         #Move a janela das features
         if (self.nFrame < len(self.frames)-1):
@@ -268,17 +274,21 @@ class VisualOdometry(object):
             k, r, t, P = DLT(coords,points)
             e = self.computeProjectionError(coords,points,P)
 
-            print "k: ",k
-            print "r: ",r
-            print "t: ",t
-            print "e: ",e
+#            print "k: ",k
+#            print "r: ",r
+#            print "t: ",t
+#            print "e: ",e
 
-            k, r, t, P = self.computeRANSACDLT(coords,points)
-            self.drawFeatures3()
+#            k, r, t, P = self.computeRANSACDLT(coords,points)
+#            self.drawFeatures3()
 
-            t = list(t.A.reshape(3))
-            r = list(r.reshape(9))
+#            K=[]
+            r,t = estimateMotion(K,coords,points)
+            print r,t
+
+#            t = list(t.A.reshape(3))
+#            r = list(r.reshape(9))
             #err = list(err.A.reshape(1))
-            self.filecsv.writerow(t+r)
+#            self.filecsv.writerow(t+r)
 
 

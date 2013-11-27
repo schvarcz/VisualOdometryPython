@@ -1,3 +1,4 @@
+# -*- coding:utf8 -*-
 from cv2 import *
 import numpy as np
 from dlt import *
@@ -28,6 +29,8 @@ class VisualOdometry(object):
 
         self.idxs = [None for i in range(range_frames)]
         self.featuresDists = [None for i in range(range_frames)]
+        self.idxStereo = [None for i in range(range_frames)]
+        self.featuresDistsStereo = [None for i in range(range_frames)]
         self.idxClean = None
         self.distClean = None
 
@@ -42,35 +45,44 @@ class VisualOdometry(object):
     def currentDist(self):
         return self.dists[self.nFrame]
 
+
     @property
     def currentDisp(self):
         return self.disps[self.nFrame]
 
+
     @property
     def currentFrame(self):
-        return self.frames[self.nFrame]
+        return self.frames[self.nFrame][0]
+
 
     def findCurrentFeatures(self):
         index = self.nFrame
-        img = self.frames[index]
+        imgl, imgr = self.frames[index]
 
-        skp = self.detector.detect(img)
-        skp, sd = self.descriptor.compute(img,skp)
-        flann = flann_Index(sd, self.flann_params)
+        skpl = self.detector.detect(imgl)
+        skpl, sdl = self.descriptor.compute(imgl,skpl)
+        flannl = flann_Index(sdl, self.flann_params)
 
-        self.skps[index], self.sds[index], self.flanns[index] = skp,sd,flann
+        skpr = self.detector.detect(imgr)
+        skpr, sdr = self.descriptor.compute(imgr,skpr)
+        flannr = flann_Index(sdr, self.flann_params)
+
+        self.idxStereo[index], self.featuresDistsStereo[index] = self.twoWayMatch(sdl, flannl, sdr, flannr)
+
+        self.skps[index], self.sds[index], self.flanns[index] = [skpl,skpr],[sdl,sdr],[flannl,flannr]
 
 
     def drawFeatures(self):
-        skp = self.skps[self.nFrame]
+        skp = self.skps[self.nFrame][0]
         for i in xrange(len(skp)):            
-            circle(self.frames[self.nFrame],(int(skp[i].pt[0]),int(skp[i].pt[1])),3,(0,0,255),-1)
+            circle(self.frames[self.nFrame][0],(int(skp[i].pt[0]),int(skp[i].pt[1])),3,(0,0,255),-1)
 
 
     def drawFeatures2(self):
         if self.nFrame != 0:
-            skpOld = self.skps[self.nFrame-1]
-            skp = self.skps[self.nFrame]
+            skpOld = self.skps[self.nFrame-1][0]
+            skp = self.skps[self.nFrame][0]
             idx = self.idxs[self.nFrame-1]
             dist = self.featuresDists[self.nFrame-1]
 
@@ -80,15 +92,14 @@ class VisualOdometry(object):
                     oldP = (int(skpOld[i].pt[0]),int(skpOld[i].pt[1]))
                     p = (int(skp[idx[i]].pt[0]),int(skp[idx[i]].pt[1]))
     
-                    #print self.disps[self.nFrame-1].shape
-                    if dist[i]<self.confianca and (0.5 < self.dists[self.nFrame-1][p[1],p[0]] < 0.6 ):
-                        print self.dists[self.nFrame-1][p[1],p[0]]
-                        line(self.frames[self.nFrame],oldP,p,(255,0,0))	
-                        circle(self.frames[self.nFrame],p,3,(0,255,0),-1)
+                    if dist[i]<self.confianca:
+                        line(self.frames[self.nFrame][0],oldP,p,(255,0,0))
+                        circle(self.frames[self.nFrame][0],p,3,(0,255,0),-1)
+
 
     def drawFeatures3(self):
         for pt in self.bestPoints:
-            circle(self.frames[self.nFrame],(int(pt[0]),int(pt[1])),3,(255,0,255),-1)
+            circle(self.frames[self.nFrame][0],(int(pt[0]),int(pt[1])),3,(255,0,255),-1)
 
 
     def matchingFeatures(self):
@@ -96,14 +107,14 @@ class VisualOdometry(object):
         index = self.nFrame
 
         if index != 0:
-            sd, sdOld = self.sds[index], self.sds[index-1]
-            flann, flannOld = self.flanns[index], self.flanns[index-1]
+            sd, sdOld = self.sds[index][0], self.sds[index-1][0]
+            flann, flannOld = self.flanns[index][0], self.flanns[index-1][0]
             self.idxs[index-1], self.featuresDists[index-1] = self.twoWayMatch(sdOld, flannOld, sd, flann)
 
         #Faz a correspondencia 2 a 2 do ultimo com o primeiro
         if index == len(self.frames)-1:
-            sd, sdOld = self.sds[index], self.sds[0]
-            flann, flannOld = self.flanns[index], self.flanns[0]
+            sd, sdOld = self.sds[index][0], self.sds[0][0]
+            flann, flannOld = self.flanns[index][0], self.flanns[0][0]
             self.idxs[index], self.featuresDists[index] = self.twoWayMatch(sdOld, flannOld, sd, flann)
 
 
@@ -198,11 +209,13 @@ class VisualOdometry(object):
         return best
 
 
-    def computeDistance(self,imgl,imgr):
+    def computeDistance(self):
+        imgl,imgr = self.frames[self.nFrame]
         imglg, imgrg = cvtColor(imgl,cv.CV_RGBA2GRAY), cvtColor(imgr,cv.CV_RGBA2GRAY)
         disp = self.ste.compute(imglg, imgrg)/16.
         dist = self.foco*self.distancia_cameras/disp
         self.disps[self.nFrame], self.dists[self.nFrame] = disp, dist
+
 
     def featuresCoordinates(self):
         coords = []
@@ -210,18 +223,22 @@ class VisualOdometry(object):
         
         index = self.nFrame
         idx = self.idxs[index-1]
-        skpOld, skp = self.skps[index-1], self.skps[index]
+        (skpOldLeft, skpOldRight), skp = self.skps[index-1], self.skps[index][0]
         featureDist = self.featuresDists[index-1]
-        disp, dist = self.currentDisp, self.currentDist
+
+        idxStereo = self.idxStereo[index-1]
+        featureDistStereo = self.featuresDistsStereo[index-1]
 
         for i in xrange(len(idx)):
-            if idx[i] != None:
-                oldP = (int(skpOld[i].pt[0]),int(skpOld[i].pt[1]))
+            if idx[i] != None and idxStereo[i] != None:
+                oldPLeft = (int(skpOldLeft[i].pt[0]),int(skpOldLeft[i].pt[1]))
+                oldPRight = (int(skpOldRight[idxStereo[i]].pt[0]),int(skpOldRight[idxStereo[i]].pt[1]))
                 p = (int(skp[idx[i]].pt[0]),int(skp[idx[i]].pt[1]))
-                if featureDist[i]<self.confianca and disp[oldP[1]][oldP[0]] > 0 :
-                    x = (oldP[0]-6.601406e+02)*self.distancia_cameras/disp[oldP[1]][oldP[0]]
-                    y = (oldP[1]-2.611004e+02)*self.distancia_cameras/disp[oldP[1]][oldP[0]]
-                    z = dist[oldP[1]][oldP[0]]
+                disp = abs(oldPLeft[0] - oldPRight[0])
+                if (featureDist[i]<self.confianca) and (featureDistStereo[i]<self.confianca) and (disp != 0):
+                    x = (oldPLeft[0]-6.601406e+02)*self.distancia_cameras/disp
+                    y = (oldPLeft[1]-2.611004e+02)*self.distancia_cameras/disp
+                    z = self.foco*self.distancia_cameras/disp
                     coords.append([x,y,z,1.])
                     points.append(p)
 
@@ -244,18 +261,20 @@ class VisualOdometry(object):
                 self.flanns[i-1] = self.flanns[i]
                 self.idxs[i-1] = self.idxs[i]
                 self.featuresDists[i-1] = self.featuresDists[i]
+                self.idxStereo[i-1] = self.idxStereo[i]
+                self.featuresDistsStereo[i-1] = self.featuresDistsStereo[i]
 
         #acha as features para a imagem atual
-        self.frames[self.nFrame] = imgl
+        self.frames[self.nFrame] = [imgl,imgr]
         self.findCurrentFeatures()
 
         #Desenha os features encontrados
-        #self.drawFeatures()
+        self.drawFeatures()
 
         self.matchingFeatures()
 
         #Computa a distancia em Z
-        self.computeDistance(imgl,imgr)
+        #self.computeDistance()
 
         #Desenha correspondencia 2 a 2
         self.drawFeatures2()
@@ -278,7 +297,6 @@ class VisualOdometry(object):
 
             t = list(t.A.reshape(3))
             r = list(r.reshape(9))
-            #err = list(err.A.reshape(1))
             self.filecsv.writerow(t+r)
 
 

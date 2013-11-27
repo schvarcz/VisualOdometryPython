@@ -29,13 +29,6 @@ for i in range(373):
     print "Features finais... ", i
     imshow("Video",visual.currentFrame)
 
-    aux = visual.currentDist
-    aux[aux == float('inf')] = 0
-    aux[aux < 0.] = 0
-    #print aux.min(),aux.max()
-    aux= aux/(aux.max()*0.10)
-    #print aux.min(),aux.max()
-    imshow("Distancia",aux)
     k = waitKey(33) & 255
     if k == 27:
         break;

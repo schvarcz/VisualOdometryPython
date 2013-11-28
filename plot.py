@@ -11,7 +11,11 @@ def matrixRot(alpha,beta,gama):
      [-cos(alpha)*sin(gama)-sin(alpha)*cos(beta)*cos(gama),  -sin(alpha)*sin(gama)+cos(alpha)*cos(beta)*cos(gama),  sin(beta)*cos(gama) ],
      [sin(beta)*sin(gama)                                 ,  -cos(alpha)*sin(beta)                               ,  cos(beta)]])
 
-
+def matrixRot2(alpha,beta,gama):
+    return matrix( 
+    [ [+cos(beta)*cos(gama), -cos(beta)*sin(gama), +sin(beta)],
+    [+sin(alpha)*sin(beta)*cos(gama)+cos(alpha)*sin(gama),-sin(alpha)*sin(beta)*sin(gama)+cos(alpha)*cos(gama),-sin(alpha)*cos(beta)],
+    [-cos(alpha)*sin(beta)*cos(gama)+sin(alpha)*sin(gama), +cos(alpha)*sin(beta)*sin(gama)+sin(alpha)*cos(gama), +cos(alpha)*cos(beta)]])
 
 f = plt.figure()
 ax = f.add_subplot(111,projection='3d')
@@ -36,14 +40,15 @@ for line in csv.reader(file("posicao.csv"),delimiter=';'):
     x, y, z = list(oldT)
     #t = asarray([y,z,x])
 
-    t = matrixRot(-alpha,-beta,-gama).dot(t)
+#    t = matrixRot(-alpha,-beta,-gama).dot(t)
+    t = matrixRot2(alpha,beta,gama).I.dot(t).A1
 
     oldR += r
     oldT += t
 
     x, y, z = list(oldT)
 
-    trans[0].append(x)
+    trans[0].append(-x)
     trans[1].append(-y)
     trans[2].append(-z)
 
@@ -56,7 +61,7 @@ for line in csv.reader(file("posicao.csv"),delimiter=';'):
 
 print oldT, oldR
 #ax.plot(trans[1],trans[2],zeros(len(trans[0])))
-ax.plot(trans[1],trans[2],trans[0])
+ax.plot(trans[0],trans[2],trans[1])
 #ax.plot(trans[0],trans[1],trans[2])
 #ax.plot(trans[0],trans[2],zeros(len(trans[1])))
 
@@ -65,9 +70,9 @@ ax.plot(trans[1],trans[2],trans[0])
 
 transReal = [[],[],[]]
 tInicial = None
-for line in csv.reader(file("/home/schvarcz/Dropbox/UFRGS - Mestrado/Robótica Avançada/Visual Odometry/disparity_stereo/dataset_libviso/insdata.txt"),delimiter=' '):
+for line in csv.reader(file("dataset_libviso/insdata.txt"),delimiter=' '):
     t = asarray([float(l) for l in line[4:7]])
-    t = matrixRot(-0.78539816339744828,0,0).dot(t)
+    t = matrixRot2(0,0,0.56).dot(t).A1
     if tInicial == None:
         tInicial = t
     t = t-tInicial
@@ -75,11 +80,6 @@ for line in csv.reader(file("/home/schvarcz/Dropbox/UFRGS - Mestrado/Robótica A
         transReal[i].append(t[i])
     
 ax.plot(transReal[0],transReal[1],zeros(len(transReal[2])))
-
-ax.set_xlim3d(-100,100)
-ax.set_ylim3d(-100,100)
-ax.set_zlim3d(-100,100)
-
 
 
 
@@ -94,10 +94,13 @@ for line in csv.reader(file("saida.txt"),delimiter=';'):
 
 ax.plot(transLibViso[0],transLibViso[2],transLibViso[1])
 
+ax.set_xlim3d(-60,100)
+ax.set_ylim3d(-20,140)
+ax.set_zlim3d(-60,100)
 
 
 f1 = plt.figure()
-plt.plot(trans[1],trans[2])
+plt.plot(trans[0],trans[2])
 plt.plot(transReal[0],transReal[1])
 plt.plot(transLibViso[0],transLibViso[2])
 #plt.plot(rots[0])

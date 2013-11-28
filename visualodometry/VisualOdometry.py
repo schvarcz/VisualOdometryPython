@@ -286,9 +286,9 @@ class VisualOdometry(object):
             r,t = estimateMotion(K,coords,points)
             print r,t
 
-#            t = list(t.A.reshape(3))
-#            r = list(r.reshape(9))
+            t = list(t.reshape(3))
+            r = list(r.reshape(3))
             #err = list(err.A.reshape(1))
-#            self.filecsv.writerow(t+r)
+            self.filecsv.writerow(t+r)
 
 

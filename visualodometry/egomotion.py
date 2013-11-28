@@ -13,7 +13,7 @@ def computeRT(K,coords,points):
         tr = newTr
 
         it += 1
-        if (it == 5 or (variacao.max() < 1e-06)):
+        if (it == 20 or (variacao.max() < 1e-06)):
             flag = False
 
     return tr[:3],tr[3:]
@@ -35,8 +35,7 @@ def IterationResidualJacobian(tr,K,coords,points):
     tx = tr[3]; ty = tr[4]; tz = tr[5];
 
     # Precompute sine/cosine
-    sx = np.sin(rx); cx = np.cos(rx); sy = np.sin(ry);
-    cy = np.cos(ry); sz = np.sin(rz); cz = np.cos(rz);
+    sx = np.sin(rx); cx = np.cos(rx); sy = np.sin(ry); cy = np.cos(ry); sz = np.sin(rz); cz = np.cos(rz);
 
     # Compute projection matrix (rot+trans)
     P = np.matrix([ [+cy*cz, -cy*sz, +sy, tx],
@@ -102,7 +101,7 @@ def IterationResidualJacobian(tr,K,coords,points):
     A = (J.T*J).I
     b = J.T*r
 
-    newTr = tr - (A*b).A1
+    newTr = tr + (A*b).A1
 
     return newTr
 

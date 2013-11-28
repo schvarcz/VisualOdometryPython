@@ -105,16 +105,44 @@ def IterationResidualJacobian(tr,K,coords,points):
 
     return newTr
 
-def computeError(coords,points,P):
+def computeError(K,r,t,coords,points):
+
+    inliers = []
+
+    # Extract motion parameters
+    rx = r[0]; ry = r[1]; rz = r[2];
+    tx = t[0]; ty = t[1]; tz = t[2];
+
+    focus = -K[0,0]
+    cu = K[0,2]
+    cv = K[1,2]
+
+    T=np.matrix(t).T
+
+    # Precompute sine/cosine
+    sx = np.sin(rx); cx = np.cos(rx); sy = np.sin(ry); cy = np.cos(ry); sz = np.sin(rz); cz = np.cos(rz);
+
+    # Compute projection matrix (rot+trans)
+    R = np.matrix([ [+cy*cz, -cy*sz, +sy],
+            [+sx*sy*cz+cx*sz,-sx*sy*sz+cx*cz,-sx*cy],
+            [-cx*sy*cz+sx*sz, +cx*sy*sz+sx*cz, +cx*cy]])
+
     sumErr = 0.0
     for i in xrange(len(coords)):
         p=points[i]
-        c=coords[i]
+        c=coords[i][:3]
         c=np.matrix(c).T
-        proj=P*c
-        pix=[proj[0]/proj[2],proj[1]/proj[2]]
-        sumErr += (pix[0]-p[0])*(pix[0]-p[0]) + (pix[1]-p[1])*(pix[1]-p[1])
-    return sumErr/len(coords)
+
+        proj=(R*c+T)
+#        print '##c:{0} p:{1}##'.format(c,proj)
+        pix=[focus*proj[0]/proj[2]+cu,focus*proj[1]/proj[2]+cv]
+        err = (pix[0]-p[0])*(pix[0]-p[0]) + (pix[1]-p[1])*(pix[1]-p[1])
+        if (err < 50):
+            inliers.append(i)
+
+#        print '##err:{0} {1}-{2}##'.format(err,pix,p)
+        sumErr += err
+    return sumErr/len(coords), inliers
 
 def estimateMotion(K,coords,points):
 
@@ -125,47 +153,48 @@ def estimateMotion(K,coords,points):
 #    computeResidualsAndJacobian(tr,active);
 
     # Executa o RANSAC com 50 iteracoes
-    for i in range(1,2):
+    for i in range(1,25):
         # Seleciona amostra de pontos
-        indices = random.sample(xrange(len(coords)), 10)
+        indices = random.sample(xrange(len(coords)), 6)
         sampledCoords = [coords[j] for j in indices]
         sampledPoints = [points[j] for j in indices]
         r,t = computeRT(K,sampledCoords,sampledPoints)
 
-        best = [r,t]
-
         # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
-#        err = self.computeError(coords,points,P)
-        # print 'err({0}): {1}'.format(i,err)
-#        if err < minError:
-#            minError = err
-#            best = [K,r,t,P]
+        err,inliers = computeError(K,r,t,coords,points)
+#        print 'err({0}): {1}'.format(i,err)
+        if err < minError:
+            minError = err
+            best = [r,t,inliers]
 #            self.bestPoints = sampledPoints
 
-#    print 'MeanError {0}!'.format(minError)
+    print 'MeanError {0}!'.format(minError)
 
+    inliers = best[2]
 #    inliers = self.computeInliers(best[3],coords,points)
-#    print 'total {0} inliers {1}'.format(len(coords),len(inliers))
+    print 'total {0} inliers {1}'.format(len(coords),len(inliers))
 
-#    inliersCoords = [coords[j] for j in inliers]
-#    inliersPoints = [points[j] for j in inliers]
+    minError = 10000000
 
-#    # Repete RANSAC usando somente inliers
-#    for i in range(1,1):
-#        # Seleciona amostra de pontos
-#        indices = random.sample(xrange(len(inliersCoords)), 10)
-#        sampledCoords = [inliersCoords[j] for j in indices]
-#        sampledPoints = [inliersPoints[j] for j in indices]
-#        k,r,t,P = self.computeRT(sampledCoords,sampledPoints)
+    inliersCoords = [coords[j] for j in inliers]
+    inliersPoints = [points[j] for j in inliers]
+
+    # Repete RANSAC usando somente inliers
+    for i in range(1,25):
+        # Seleciona amostra de pontos
+        indices = random.sample(xrange(len(inliersCoords)), 6)
+        sampledCoords = [inliersCoords[j] for j in indices]
+        sampledPoints = [inliersPoints[j] for j in indices]
+        r,t = computeRT(K,sampledCoords,sampledPoints)
 
         # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
-#        err = self.computeError(inliersCoords,inliersPoints,P)
-#            print 'err({0}): {1}'.format(i,err)
-#        if err < minError:
-#            minError = err
-#            best = [K,r,t,P]
+        err,inliers = computeError(K,r,t,inliersCoords,inliersPoints)
+#        print 'err({0}): {1}'.format(i,err)
+        if err < minError:
+            minError = err
+            best = [r,t,inliers]
+#            self.bestPoints = sampledPoints
+    print 'MeanInliersError {0}!'.format(minError)
 
-#    print 'MeanInliersError {0}!'.format(minError)
-
-    return best
+    return [best[0],best[1]]
 

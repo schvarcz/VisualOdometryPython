@@ -2,6 +2,7 @@
 from cv2 import *
 import numpy as np
 from dlt import *
+from egomotion import *
 import random
 import csv
 
@@ -14,6 +15,10 @@ class VisualOdometry(object):
         self.distancia_cameras = distancia_cameras
         self.confianca = confianca
         self.centroProjecao = centroProjecao
+        if self.centroProjecao != None:
+            self.K = np.matrix([[-self.foco, 0., self.centroProjecao[0]],
+                           [0, -self.foco, self.centroProjecao[1]],
+                           [0., 0., 1.]])
 
         self.detector = FeatureDetector_create("SIFT")
         self.descriptor = DescriptorExtractor_create("SIFT")
@@ -254,6 +259,9 @@ class VisualOdometry(object):
         if self.centroProjecao == None:
             self.centroProjecao = imgl.shape[1]/2.,imgl.shape[0]/2.
 
+            self.K = np.matrix([[-self.foco, 0., self.centroProjecao[0]],
+                           [0, -self.foco, self.centroProjecao[1]],
+                           [0., 0., 1.]])
 
         #Move a janela das features
         if (self.nFrame < len(self.frames)-1):
@@ -289,19 +297,22 @@ class VisualOdometry(object):
         if self.nFrame != 0:
             coords, points = self.featuresCoordinates()
             
-            k, r, t, P = DLT(coords,points)
-            e = self.computeProjectionError(coords,points,P)
+            #k, r, t, P = DLT(coords,points)
+            #e = self.computeProjectionError(coords,points,P)
 
-            print "k: ",k
-            print "r: ",r
-            print "t: ",t
-            print "e: ",e
+            #print "k: ",k
+            #print "r: ",r
+            #print "t: ",t
+            #print "e: ",e
 
-            k, r, t, P = self.computeRANSACDLT(coords,points)
-            self.drawFeatures3()
+            #k, r, t, P = self.computeRANSACDLT(coords,points)
+            #self.drawFeatures3()
 
-            t = list(t.A.reshape(3))
-            r = list(r.reshape(9))
+            r,t = estimateMotion(self.K,coords,points)
+            print r,t
+
+            t = list(t.reshape(3))
+            r = list(r.reshape(3))
             self.filecsv.writerow(t+r)
 
 

@@ -1,5 +1,14 @@
 import numpy as np
+from numpy import cos, sin
 import random
+
+
+def matrixRot(alpha,beta,gama):
+    return np.matrix( 
+    [ [+cos(beta)*cos(gama), -cos(beta)*sin(gama), +sin(beta)],
+    [+sin(alpha)*sin(beta)*cos(gama)+cos(alpha)*sin(gama),-sin(alpha)*sin(beta)*sin(gama)+cos(alpha)*cos(gama),-sin(alpha)*cos(beta)],
+    [-cos(alpha)*sin(beta)*cos(gama)+sin(alpha)*sin(gama), +cos(alpha)*sin(beta)*sin(gama)+sin(alpha)*cos(gama), +cos(alpha)*cos(beta)]])
+
 
 def computeRT(K,coords,points):
     tr=np.zeros(6)
@@ -146,7 +155,7 @@ def computeError(K,r,t,coords,points):
 
 def estimateMotion(K,coords,points):
 
-    minError = 10000000
+    minError = float("inf")
     best = None
 
 #    computeObservations(p_matched,active);
@@ -158,15 +167,16 @@ def estimateMotion(K,coords,points):
         indices = random.sample(xrange(len(coords)), 6)
         sampledCoords = [coords[j] for j in indices]
         sampledPoints = [points[j] for j in indices]
-        r,t = computeRT(K,sampledCoords,sampledPoints)
+        try:
+            r,t = computeRT(K,sampledCoords,sampledPoints)
 
-        # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
-        err,inliers = computeError(K,r,t,coords,points)
-#        print 'err({0}): {1}'.format(i,err)
-        if err < minError:
-            minError = err
-            best = [r,t,inliers]
-#            self.bestPoints = sampledPoints
+            # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
+            err,inliers = computeError(K,r,t,coords,points)
+            if err < minError:
+                minError = err
+                best = [r,t,inliers]
+        except:
+            pass
 
     print 'MeanError {0}!'.format(minError)
 
@@ -174,27 +184,12 @@ def estimateMotion(K,coords,points):
 #    inliers = self.computeInliers(best[3],coords,points)
     print 'total {0} inliers {1}'.format(len(coords),len(inliers))
 
-    minError = 10000000
 
     inliersCoords = [coords[j] for j in inliers]
     inliersPoints = [points[j] for j in inliers]
 
-    # Repete RANSAC usando somente inliers
-    for i in range(1,25):
-        # Seleciona amostra de pontos
-        indices = random.sample(xrange(len(inliersCoords)), 6)
-        sampledCoords = [inliersCoords[j] for j in indices]
-        sampledPoints = [inliersPoints[j] for j in indices]
-        r,t = computeRT(K,sampledCoords,sampledPoints)
+    r,t = computeRT(K,inliersCoords,inliersPoints)
 
-        # Computa o erro da projecao de todos os pontos considerando a matriz de projecao obtida
-        err,inliers = computeError(K,r,t,inliersCoords,inliersPoints)
-#        print 'err({0}): {1}'.format(i,err)
-        if err < minError:
-            minError = err
-            best = [r,t,inliers]
-#            self.bestPoints = sampledPoints
-    print 'MeanInliersError {0}!'.format(minError)
+    return r, t, inliersPoints
 
-    return [best[0],best[1]]
 

@@ -1,3 +1,4 @@
+# -*- coding:utf8 -*-
 from cv2 import *
 import numpy as np
 from dlt import *
@@ -7,16 +8,21 @@ import csv
 
 
 class VisualOdometry(object):
-    def __init__(self,foco,distancia_cameras,confianca):
+    def __init__(self,foco,distancia_cameras,confianca,centroProjecao=None):
 
         self.foco = foco
         self.distancia_cameras = distancia_cameras
         self.confianca = confianca
+        self.centroProjecao = centroProjecao
+        if self.centroProjecao != None:    
+            self.K=np.matrix([ [-self.foco , 0.        , self.centroProjecao[0]],
+                          [0          , -self.foco, self.centroProjecao[1]],
+                          [0.         , 0.        , 1.                   ]])
 
         self.detector = FeatureDetector_create("SIFT")
         self.descriptor = DescriptorExtractor_create("SIFT")
-        self.ste = StereoBM() #STEREO_BM_BASIC_PRESET,128,5)
-        #self.ste = StereoSGBM(0,64,7,8*7*7,32*7*7,0,30,0)
+        #self.ste = StereoBM() #STEREO_BM_BASIC_PRESET,128,5)
+        self.ste = StereoSGBM(0,96,11,8*11*11,32*11*11)
 
         range_frames = 2
 
@@ -35,6 +41,9 @@ class VisualOdometry(object):
         self.nFrame = -1
         self.flann_params = dict(algorithm=1, trees=1)
         self.centro_imagem = None
+
+        self.position = np.asarray([.6,.05,1.6])
+        self.rotation = np.asarray([.0,-.08,0.])
 
 
         self.filecsv = csv.writer(file("posicao.csv",'w'),delimiter=';')
@@ -83,7 +92,6 @@ class VisualOdometry(object):
     
                     #print self.disps[self.nFrame-1].shape
                     if dist[i]<self.confianca and (0.5 < self.dists[self.nFrame-1][p[1],p[0]] < 0.6 ):
-                        print self.dists[self.nFrame-1][p[1],p[0]]
                         line(self.frames[self.nFrame],oldP,p,(255,0,0))	
                         circle(self.frames[self.nFrame],p,3,(0,255,0),-1)
 
@@ -142,6 +150,7 @@ class VisualOdometry(object):
         return sumErr/len(coords)
 
 
+    # Esse método deveria estar fora da classe. Como uma util
     def computeInliers(self,P,coords,points):
         inliers = []
         for i in xrange(len(coords)):
@@ -154,6 +163,7 @@ class VisualOdometry(object):
                 inliers.append(i)
         return inliers
 
+    # Esse método deveria estar fora da classe. Como uma util
     def computeRANSACDLT(self,coords,points):
         minError = 10000000
         best = None
@@ -220,8 +230,8 @@ class VisualOdometry(object):
                 oldP = (int(skpOld[i].pt[0]),int(skpOld[i].pt[1]))
                 p = (int(skp[idx[i]].pt[0]),int(skp[idx[i]].pt[1]))
                 if featureDist[i]<self.confianca and disp[oldP[1]][oldP[0]] > 0 :
-                    x = (oldP[0]-6.601406e+02)*self.distancia_cameras/disp[oldP[1]][oldP[0]]
-                    y = (oldP[1]-2.611004e+02)*self.distancia_cameras/disp[oldP[1]][oldP[0]]
+                    x = (oldP[0]-self.centroProjecao[0])*self.distancia_cameras/disp[oldP[1]][oldP[0]]
+                    y = (oldP[1]-self.centroProjecao[1])*self.distancia_cameras/disp[oldP[1]][oldP[0]]
                     z = dist[oldP[1]][oldP[0]]
                     coords.append([x,y,z,1.])
                     points.append(p)
@@ -230,14 +240,11 @@ class VisualOdometry(object):
 
 
     def compute(self,imgl,imgr):
-        if self.centro_imagem == None:
-            self.centro_imagem = imgl.shape[0]/2.,imgl.shape[1]/2.
-
-        K=[]
-        K.append([-self.foco, 0., 6.601406e+02])
-        K.append([0, -self.foco, 2.611004e+02])
-        K.append([0., 0., 1.])
-        K = np.matrix(K)
+        if self.centroProjecao == None:
+            self.centroProjecao = imgl.shape[0]/2.,imgl.shape[1]/2.
+            self.K=np.matrix([ [-self.foco , 0.        , self.centroProjecao[0]],
+                          [0          , -self.foco, self.centroProjecao[1]],
+                          [0.         , 0.        , 1.                   ]])
 
         #Move a janela das features
         if (self.nFrame < len(self.frames)-1):
@@ -271,24 +278,21 @@ class VisualOdometry(object):
         if self.nFrame != 0:
             coords, points = self.featuresCoordinates()
             
-            k, r, t, P = DLT(coords,points)
-            e = self.computeProjectionError(coords,points,P)
-
-#            print "k: ",k
-#            print "r: ",r
-#            print "t: ",t
-#            print "e: ",e
-
-#            k, r, t, P = self.computeRANSACDLT(coords,points)
-#            self.drawFeatures3()
-
-#            K=[]
-            r,t = estimateMotion(K,coords,points)
+            r, t, self.bestPoints = estimateMotion(self.K,coords,points)
+            self.drawFeatures3()
             print r,t
 
             t = list(t.reshape(3))
             r = list(r.reshape(3))
-            #err = list(err.A.reshape(1))
+
+            alpha, beta, gama = self.rotation
+
+            t = matrixRot(alpha,beta,gama).I.dot(t).A1
+
+            self.rotation += r
+            self.position += t
+
+
             self.filecsv.writerow(t+r)
 
 

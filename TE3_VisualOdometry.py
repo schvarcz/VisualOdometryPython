@@ -145,9 +145,9 @@ def drawPyPlot(imgMN2O, IMU, ODO):
     axODO = plt.subplot(224,projection='3d')
     x, y, z  = ODO
     axODO.plot(x, y, z, label="Path")
-    axODO.set_xlim3d(-190,0)
-    axODO.set_ylim3d(-145,45)
-    axODO.set_zlim3d(-60,100)
+    axODO.set_xlim3d(0,190)
+    axODO.set_ylim3d(-15,175)
+    axODO.set_zlim3d(-50,100)
 
 def drawPyPlotFeatures(imgM, imgMN2O):
     axImg = plt.subplot(211)

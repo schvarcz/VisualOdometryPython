@@ -14,8 +14,14 @@ search_params = dict(checks=100)
 
 print(cv2.__version__)
 path = "C:\\Users\\Guilherme\\Desktop\\visualodometry\\dataset_libviso\\"
+pathSalvar = "C:\\Users\\Guilherme\\Desktop\\visualodometry\\results\\brisk_brisk\\"
 #path = "dataset_libviso/"
-pathSalvar = "salvar_1/"
+#pathSalvar = "results/brisk_brisk/"
+
+if not os.path.exists(pathSalvar):
+    os.mkdir(pathSalvar)
+logResults = open(pathSalvar+"logfile.csv","w")
+
 confianca = 10000
 distancia_cameras = .57073824147
 cameraMatrix = np.asarray([[6.452401e+02,   0           ,   6.601406e+02],
@@ -219,7 +225,8 @@ if __name__ == "__main__":
 
                 matchesI, kptsLI, kptsLOldI = cleanInliers(inliers, matches, kptsLN, kptsLOld)
                 imgMN2O = drawFeaturesCorrespondance(imgMN2O, kptsLI, kptsLOldI, matchesI, (0,0,255))
-                print ",".join(["{0:06d}".format(frameId), str(x), str(y), str(z), str(roll), str(pitch), str(yaw), str(len(coords3DOld)), str(len(inliers)), str(error)])
+                log = ",".join(["{0:06d}".format(frameId), str(x), str(y), str(z), str(roll), str(pitch), str(yaw), str(len(coords3DOld)), str(len(inliers)), str(error)])
+                logResults.write(log+"\n")
 
         if oldCorrespondence == None or flag:
             oldCorrespondence = (matches, kptsL, descL, kptsR, descR, coords3D)
@@ -231,6 +238,7 @@ if __name__ == "__main__":
         if not imgMN2O is None:
             #drawPyPlotFeatures(imgM, imgMN2O)
             drawPyPlot(imgMN2O, IMU, ODO)
+            cv2.imwrite("{0}I_{1:06d}.png".format(pathSalvar,frameId), imgMN2O)
             if flag:
                 plt.pause(0.05)
             else:
@@ -239,5 +247,6 @@ if __name__ == "__main__":
     print(os.getcwd())
 plt.ioff()
 
+logResults.close()
 drawPyPlot(imgMN2O, IMU, ODO)
 plt.show()

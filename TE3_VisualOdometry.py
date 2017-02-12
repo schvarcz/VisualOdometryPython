@@ -21,12 +21,14 @@ distancia_cameras = .57073824147
 cameraMatrix = np.asarray([[6.452401e+02,   0           ,   6.601406e+02],
                             [0           ,   6.452401e+02,   2.611004e+02],
                             [0           ,   0           ,   1           ]])
-maxDisp = (300,20)
+
+maxDispStereo = (100,20)
+maxDispTensor = (200,100)
+maxDisp = maxDispStereo
 
 flann = cv2.FlannBasedMatcher(index_params,search_params)
 featuredDetector = cv2.BRISK_create()
 featuredDescriptor = cv2.BRISK_create()
-
 
 posCam = np.asarray([.6,.0,1.6])
 IMU = [[0],[-.08],[0]]
@@ -88,7 +90,7 @@ def cleanFeatures(matches, kptsL, descL, kptsR, descR, coords3D = None):
 def cleanInliers(inliers, matches, kptsL, kptsR):
     matches_r, kptsL_R, kptsR_R = [], [], []
     idx = 0
-    for i in inliers:
+    for [i] in inliers:
         m = matches[i][0]
         matches_r.append([cv2.DMatch(idx,idx,m.imgIdx,m.distance)])
         kptsL_R.append(kptsL[i])
@@ -165,8 +167,8 @@ if __name__ == "__main__":
     oldCorrespondence = None
     imgMN2O = None
     flag = False
-    for i in range(373):
-        imgl, imgr = cv2.imread("{0}I1_{1:06d}.png".format(path,i)), cv2.imread("{0}I2_{1:06d}.png".format(path,i))
+    for frameId in range(373):
+        imgl, imgr = cv2.imread("{0}I1_{1:06d}.png".format(path,frameId)), cv2.imread("{0}I2_{1:06d}.png".format(path,frameId))
 
         #Detect and compute features and descriptors of the current stereo pair
         kptsL = featuredDetector.detect(imgl)
@@ -175,7 +177,7 @@ if __name__ == "__main__":
         kptsR, descR = featuredDescriptor.compute(imgr,kptsR)
 
         #Compute the two way matching and clean our vectors
-        maxDisp = (100,20)
+        maxDisp = maxDispStereo
         matches = twoWayMatch(kptsL, descL, kptsR, descR, featureCorrespondenceCheck)
         matches, kptsL, descL, kptsR, descR, dists = cleanFeatures(matches, kptsL, descL, kptsR, descR)
 
@@ -186,7 +188,7 @@ if __name__ == "__main__":
         #Compute egomotion based on the previous stereo pair
         if oldCorrespondence != None:
             matchesOld, kptsLOld, descLOld, kptsROld, descROld, coords3DOld = oldCorrespondence
-            maxDisp = (200,100)
+            maxDisp = maxDispTensor
             matchesN2O = twoWayMatch(kptsL, descL, kptsLOld, descLOld, featureCorrespondenceCheck)
             matchesN2O, kptsLN, descLN, kptsLOld, descLOld, __, coords3DOld = cleanFeatures(matchesN2O, kptsL, descL, kptsLOld, descLOld, coords3DOld)
             imgMN2O = drawFeaturesCorrespondance(imgl, kptsLN, kptsLOld, matchesN2O)
@@ -196,19 +198,21 @@ if __name__ == "__main__":
             flag, rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kpts2np(kptsLN), cameraMatrix, None)
             # flag, rvec, tvec = cv2.solvePnP(coords3DOld, kpts2np(kptsL), cameraMatrix, None)
 
-            pitch, yaw, roll  = rvec
-            rvec = roll, pitch, yaw
-            for i in range(3):
-                IMU[i].append(IMU[i][-1]+rvec[i])
-
-            roll, pitch, yaw = IMU[0][-1], IMU[1][-1], IMU[2][-1]
-            y, z, x  = tvec
-            tvec = np.asarray([x,y,z])
-            posCam += matrixRot(roll, pitch, yaw).dot(tvec).A1
-            for i in range(3):
-                ODO[i].append(posCam[i])
-
             if flag:
+                [pitch], [yaw], [roll]  = rvec
+                rvec = roll, pitch, yaw
+                for i in range(3):
+                    IMU[i].append(IMU[i][-1]+rvec[i])
+
+                roll, pitch, yaw = IMU[0][-1], IMU[1][-1], IMU[2][-1]
+                y, z, x  = tvec
+                tvec = np.asarray([x,y,z])
+                posCam += matrixRot(roll, pitch, yaw).dot(tvec).A1
+
+                x, y, z  = posCam
+                for i in range(3):
+                    ODO[i].append(posCam[i])
+                print ",".join(["{0:06d}".format(frameId), str(x), str(y), str(z), str(roll), str(pitch), str(yaw), str(len(coords3DOld)), str(len(inliers))])
                 matchesI, kptsLI, kptsLOldI = cleanInliers(inliers, matches, kptsLN, kptsLOld)
                 imgMN2O = drawFeaturesCorrespondance(imgMN2O, kptsLI, kptsLOldI, matchesI, (0,0,255))
 
@@ -219,7 +223,7 @@ if __name__ == "__main__":
         imgl = cv2.drawKeypoints(imgl,kptsL, None)
         imgr = cv2.drawKeypoints(imgr,kptsR, None)
 
-        if imgMN2O != None:
+        if not imgMN2O is None:
             #drawPyPlotFeatures(imgM, imgMN2O)
             drawPyPlot(imgMN2O, IMU, ODO)
             if flag:

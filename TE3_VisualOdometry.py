@@ -14,7 +14,7 @@ search_params = dict(checks=100)
 
 print(cv2.__version__)
 path = "C:\\Users\\Guilherme\\Desktop\\visualodometry\\dataset_libviso\\"
-path = "dataset_libviso/"
+#path = "dataset_libviso/"
 pathSalvar = "salvar_1/"
 confianca = 10000
 distancia_cameras = .57073824147
@@ -29,7 +29,7 @@ featuredDescriptor = cv2.BRISK_create()
 
 
 posCam = np.asarray([.6,.0,1.6])
-IMU = [[0],[-.0],[0]]
+IMU = [[0],[-.08],[0]]
 ODO = [[0.6],[0],[1.6]]
 
 def twoWayMatch(kptsL, descL, kptsR, descR, checkFunc = lambda kptL, kptR, match: True):
@@ -145,7 +145,7 @@ def drawPyPlot(imgMN2O, IMU, ODO):
     axODO = plt.subplot(224,projection='3d')
     x, y, z  = ODO
     axODO.plot(x, y, z, label="Path")
-    axODO.set_xlim3d(0,190)
+    axODO.set_xlim3d(-170,20)
     axODO.set_ylim3d(-15,175)
     axODO.set_zlim3d(-50,100)
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
         kptsR, descR = featuredDescriptor.compute(imgr,kptsR)
 
         #Compute the two way matching and clean our vectors
-        maxDisp = (200,50)
+        maxDisp = (100,20)
         matches = twoWayMatch(kptsL, descL, kptsR, descR, featureCorrespondenceCheck)
         matches, kptsL, descL, kptsR, descR, dists = cleanFeatures(matches, kptsL, descL, kptsR, descR)
 
@@ -219,18 +219,8 @@ if __name__ == "__main__":
         imgl = cv2.drawKeypoints(imgl,kptsL, None)
         imgr = cv2.drawKeypoints(imgr,kptsR, None)
 
-        # cv2.imshow('left', imgl)
-        # cv2.imshow('right', imgr)
-        # cv2.imshow('matches-stereo', imgM)
-        # if imgMN2O != None:
-        #     cv2.imshow('matches-nav', imgMN2O)
-        # key = cv2.waitKey(33) & 255
-        # if key == 27:
-        #     break
-
-
-
         if imgMN2O != None:
+            #drawPyPlotFeatures(imgM, imgMN2O)
             drawPyPlot(imgMN2O, IMU, ODO)
             if flag:
                 plt.pause(0.05)

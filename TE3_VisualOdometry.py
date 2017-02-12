@@ -96,8 +96,10 @@ def cleanInliers(inliers, matches, kptsL, kptsR):
         kptsL_R.append(kptsL[i])
         kptsR_R.append(kptsR[i])
         idx += 1
-
     return matches_r, kptsL_R, kptsR_R
+
+def kpts2np(kpts):
+    return np.asarray([[kpt.pt] for kpt in kpts])
 
 def drawFeaturesCorrespondance(imgl,kptsL, kptsR, matches, color = (255,0,0)):
     img = cv2.drawKeypoints(imgl,kptsL, None)
@@ -107,31 +109,6 @@ def drawFeaturesCorrespondance(imgl,kptsL, kptsR, matches, color = (255,0,0)):
         endPt   = int(round(kptsR[m.trainIdx].pt[0])), int(round(kptsR[m.trainIdx].pt[1]))
         cv2.arrowedLine(img, startPt, endPt, color)
     return img
-
-def featuresCoordinates(kptsL, descL, kptsR, descR, dists):
-    coords = []
-    for idx in xrange(len(kptsL)):
-
-        dispX = kptsL[idx].pt[0] - kptsR[idx].pt[0]
-        dispY = kptsL[idx].pt[1] - kptsR[idx].pt[1]
-
-        x = (kptsR[idx].pt[0]-cameraMatrix[0,2])*distancia_cameras/dispX
-        y = (kptsR[idx].pt[1]-cameraMatrix[1,2])*distancia_cameras/dispX
-        z = cameraMatrix[0,0]*distancia_cameras/dispX
-        coords.append([x,y,z])
-
-    return coords
-
-def featureCorrespondenceCheck(kptL, kptR, match):
-    dispX = kptL.pt[0] - kptR.pt[0]
-    dispY = kptL.pt[1] - kptR.pt[1]
-
-    if match.distance > confianca or dispX == 0 or abs(dispX) > maxDisp[0] or abs(dispY) > maxDisp[1]:
-        return False
-    return True
-
-def kpts2np(kpts):
-    return np.asarray([kpt.pt for kpt in kpts])
 
 def drawPyPlot(imgMN2O, IMU, ODO):
     axImg = plt.subplot(211)
@@ -162,6 +139,30 @@ def matrixRot(alpha,beta,gama):
     [ [+cos(beta)*cos(gama), -cos(beta)*sin(gama), +sin(beta)],
     [+sin(alpha)*sin(beta)*cos(gama)+cos(alpha)*sin(gama),-sin(alpha)*sin(beta)*sin(gama)+cos(alpha)*cos(gama),-sin(alpha)*cos(beta)],
     [-cos(alpha)*sin(beta)*cos(gama)+sin(alpha)*sin(gama), +cos(alpha)*sin(beta)*sin(gama)+sin(alpha)*cos(gama), +cos(alpha)*cos(beta)]])
+
+
+# Students should implement
+def featuresCoordinates(kptsL, descL, kptsR, descR, dists):
+    coords = []
+    for idx in xrange(len(kptsL)):
+
+        dispX = kptsL[idx].pt[0] - kptsR[idx].pt[0]
+        dispY = kptsL[idx].pt[1] - kptsR[idx].pt[1]
+
+        x = (kptsR[idx].pt[0]-cameraMatrix[0,2])*distancia_cameras/dispX
+        y = (kptsR[idx].pt[1]-cameraMatrix[1,2])*distancia_cameras/dispX
+        z = cameraMatrix[0,0]*distancia_cameras/dispX
+        coords.append([x,y,z])
+
+    return coords
+
+def featureCorrespondenceCheck(kptL, kptR, match):
+    dispX = kptL.pt[0] - kptR.pt[0]
+    dispY = kptL.pt[1] - kptR.pt[1]
+
+    if match.distance > confianca or dispX == 0 or abs(dispX) > maxDisp[0] or abs(dispY) > maxDisp[1]:
+        return False
+    return True
 
 if __name__ == "__main__":
     oldCorrespondence = None
@@ -194,11 +195,14 @@ if __name__ == "__main__":
             imgMN2O = drawFeaturesCorrespondance(imgl, kptsLN, kptsLOld, matchesN2O)
 
             coords3DOld = np.asarray(coords3DOld)
-
-            flag, rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kpts2np(kptsLN), cameraMatrix, None)
+            kptsLN_np = kpts2np(kptsLN)
+            flag, rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kptsLN_np, cameraMatrix, None)
             # flag, rvec, tvec = cv2.solvePnP(coords3DOld, kpts2np(kptsL), cameraMatrix, None)
 
             if flag:
+                pointsProjected, _ = cv2.projectPoints(coords3DOld, rvec, tvec, cameraMatrix, None)
+                error = cv2.norm(kptsLN_np, pointsProjected, cv2.NORM_L2)/len(pointsProjected)
+
                 [pitch], [yaw], [roll]  = rvec
                 rvec = roll, pitch, yaw
                 for i in range(3):
@@ -212,9 +216,10 @@ if __name__ == "__main__":
                 x, y, z  = posCam
                 for i in range(3):
                     ODO[i].append(posCam[i])
-                print ",".join(["{0:06d}".format(frameId), str(x), str(y), str(z), str(roll), str(pitch), str(yaw), str(len(coords3DOld)), str(len(inliers))])
+
                 matchesI, kptsLI, kptsLOldI = cleanInliers(inliers, matches, kptsLN, kptsLOld)
                 imgMN2O = drawFeaturesCorrespondance(imgMN2O, kptsLI, kptsLOldI, matchesI, (0,0,255))
+                print ",".join(["{0:06d}".format(frameId), str(x), str(y), str(z), str(roll), str(pitch), str(yaw), str(len(coords3DOld)), str(len(inliers)), str(error)])
 
         if oldCorrespondence == None or flag:
             oldCorrespondence = (matches, kptsL, descL, kptsR, descR, coords3D)

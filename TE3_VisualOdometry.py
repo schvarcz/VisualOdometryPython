@@ -1,22 +1,35 @@
 # -*- coding:utf8 -*-
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from math import *
+from volib import *
 import numpy as np
-import time
 import cv2
 import os
+
 plt.ion()
 
+# Python 2.4
 FLANN_INDEX_LSH=6;
-index_params= dict(algorithm = FLANN_INDEX_LSH, table_number = 6, key_size = 12, multi_probe_level = 1)
+index_params= dict(algorithm = FLANN_INDEX_LSH, table_number = 6,
+                    key_size = 12, multi_probe_level = 1)
 search_params = dict(checks=100)
+flann = cv2.FlannBasedMatcher(index_params,search_params)
+
+# Python 3.1
+flann = cv2.BFMatcher()
+
+# Python 3.2
+FLANN_INDEX_KDTREE = 0
+index_params = dict(algorithm = FLANN_INDEX_KDTREE)
+search_params = dict(checks=50)
+flann = cv2.FlannBasedMatcher(index_params,search_params)
+
 
 print(cv2.__version__)
-path = "C:\\Users\\Guilherme\\Desktop\\visualodometry\\dataset_libviso\\"
-pathSalvar = "C:\\Users\\Guilherme\\Desktop\\visualodometry\\results\\brisk_brisk\\"
-#path = "dataset_libviso/"
-#pathSalvar = "results/brisk_brisk/"
+path = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\dataset_libviso\\"
+pathSalvar = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\results\\brisk_orb\\"
+# path = "dataset_libviso/"
+# pathSalvar = "results/trash/"
 
 if not os.path.exists(pathSalvar):
     os.mkdir(pathSalvar)
@@ -32,7 +45,12 @@ maxDispStereo = (100,20)
 maxDispTensor = (200,100)
 maxDisp = maxDispStereo
 
-flann = cv2.FlannBasedMatcher(index_params,search_params)
+
+# Python 2.4
+# featuredDetector = cv2.Feature2D_create("ORB")
+# featuredDescriptor = cv2.Feature2D_create("ORB")
+
+# Python 3.X
 featuredDetector = cv2.BRISK_create()
 featuredDescriptor = cv2.BRISK_create()
 
@@ -40,117 +58,10 @@ posCam = np.asarray([.6,.0,1.6])
 IMU = [[0],[-.08],[0]]
 ODO = [[0.6],[0],[1.6]]
 
-def twoWayMatch(kptsL, descL, kptsR, descR, checkFunc = lambda kptL, kptR, match: True):
-    matches_r = []
-    matchesL2R = flann.knnMatch(descL,descR,k=2)
-    matchesR2L = flann.knnMatch(descR,descL,k=2)
-    for mL2R in matchesL2R:
-        matchFound = False
-        if type(mL2R) == list:
-            for iML2R in mL2R:
-                if type(matchesR2L[iML2R.trainIdx]) == list:
-                    for iMR2L in matchesR2L[iML2R.trainIdx]:
-                        if iMR2L.trainIdx == iML2R.queryIdx and checkFunc(kptsL[iML2R.queryIdx], kptsR[iML2R.trainIdx], iML2R):
-                            matches_r.append(iML2R)
-                            matchFound = True
-                            break
-                else:
-                    if matchesR2L[iML2R.trainIdx] == iML2R.queryIdx and checkFunc(kptsL[iML2R.queryIdx], kptsR[iML2R.trainIdx], iML2R):
-                        matches_r.append(iML2R)
-                        matchFound = True
-                if matchFound :
-                    break
-        elif mL2R != None:
-            if type(matchesR2L[mL2R.trainIdx]) == list:
-                for iMR2L in matchesR2L[mL2R.trainIdx]:
-                    if iMR2L.trainIdx == mL2R.queryIdx and checkFunc(kptsL[mL2R.queryIdx], kptsR[mL2R.trainIdx], mL2R):
-                        matches_r.append(mL2R)
-                        matchFound = True
-                        break
-            else:
-                if matchesR2L[mL2R.trainIdx] == mL2R.queryIdx and checkFunc(kptsL[mL2R.queryIdx], kptsR[mL2R.trainIdx], mL2R):
-                    matches_r.append(mL2R)
-                    matchFound = True
-    return matches_r
-
-def cleanFeatures(matches, kptsL, descL, kptsR, descR, coords3D = None):
-    matches_r, kptsL_R, descL_R, kptsR_R, descR_R, dist_R, coords3D_R = [], [], [], [], [], [], []
-    idx = 0
-    for m in matches:
-        matches_r.append([cv2.DMatch(idx,idx,m.imgIdx,m.distance)])
-        kptsL_R.append(kptsL[m.queryIdx])
-        kptsR_R.append(kptsR[m.trainIdx])
-        descL_R.append(descL[m.queryIdx])
-        descR_R.append(descR[m.trainIdx])
-        dist_R.append(m.distance)
-        if coords3D != None:
-            coords3D_R.append(coords3D[m.trainIdx])
-        idx += 1
-
-    descL_R, descR_R = np.asarray(descL_R, np.uint8), np.asarray(descR_R, np.uint8)
-
-    if coords3D != None:
-        return matches_r, kptsL_R, descL_R, kptsR_R, descR_R, dist_R, coords3D_R
-    return matches_r, kptsL_R, descL_R, kptsR_R, descR_R, dist_R
-
-def cleanInliers(inliers, matches, kptsL, kptsR):
-    matches_r, kptsL_R, kptsR_R = [], [], []
-    idx = 0
-    for [i] in inliers:
-        m = matches[i][0]
-        matches_r.append([cv2.DMatch(idx,idx,m.imgIdx,m.distance)])
-        kptsL_R.append(kptsL[i])
-        kptsR_R.append(kptsR[i])
-        idx += 1
-    return matches_r, kptsL_R, kptsR_R
-
-def kpts2np(kpts):
-    return np.asarray([[kpt.pt] for kpt in kpts])
-
-def drawFeaturesCorrespondance(imgl,kptsL, kptsR, matches, color = (255,0,0)):
-    img = cv2.drawKeypoints(imgl,kptsL, None)
-    for m in matches:
-        [m] = m
-        startPt = int(round(kptsL[m.queryIdx].pt[0])), int(round(kptsL[m.queryIdx].pt[1]))
-        endPt   = int(round(kptsR[m.trainIdx].pt[0])), int(round(kptsR[m.trainIdx].pt[1]))
-        cv2.arrowedLine(img, startPt, endPt, color)
-    return img
-
-def drawPyPlot(imgMN2O, IMU, ODO):
-    axImg = plt.subplot(211)
-    axImg.imshow(imgMN2O)
-    axIMU = plt.subplot(223)
-    roll, pitch, yaw  = IMU
-    axIMU.plot(roll, label="roll")
-    axIMU.plot(pitch, label="pitch")
-    axIMU.plot(yaw, label="yaw")
-    axIMU.set_ylim(-pi,pi)
-    axIMU.legend()
-
-    axODO = plt.subplot(224,projection='3d')
-    x, y, z  = ODO
-    axODO.plot(x, y, z, label="Path")
-    axODO.set_xlim3d(-170,20)
-    axODO.set_ylim3d(-15,175)
-    axODO.set_zlim3d(-50,100)
-
-def drawPyPlotFeatures(imgM, imgMN2O):
-    axImg = plt.subplot(211)
-    axImg.imshow(imgM)
-    axImg = plt.subplot(212)
-    axImg.imshow(imgMN2O)
-
-def matrixRot(alpha,beta,gama):
-    return np.matrix(
-    [ [+cos(beta)*cos(gama), -cos(beta)*sin(gama), +sin(beta)],
-    [+sin(alpha)*sin(beta)*cos(gama)+cos(alpha)*sin(gama),-sin(alpha)*sin(beta)*sin(gama)+cos(alpha)*cos(gama),-sin(alpha)*cos(beta)],
-    [-cos(alpha)*sin(beta)*cos(gama)+sin(alpha)*sin(gama), +cos(alpha)*sin(beta)*sin(gama)+sin(alpha)*cos(gama), +cos(alpha)*cos(beta)]])
-
-
 # Students should implement
 def featuresCoordinates(kptsL, descL, kptsR, descR, dists):
     coords = []
-    for idx in xrange(len(kptsL)):
+    for idx in range(len(kptsL)):
 
         dispX = kptsL[idx].pt[0] - kptsR[idx].pt[0]
         dispY = kptsL[idx].pt[1] - kptsR[idx].pt[1]
@@ -159,13 +70,11 @@ def featuresCoordinates(kptsL, descL, kptsR, descR, dists):
         y = (kptsR[idx].pt[1]-cameraMatrix[1,2])*distancia_cameras/dispX
         z = cameraMatrix[0,0]*distancia_cameras/dispX
         coords.append([x,y,z])
-
-    return coords
+    return np.asarray(coords)
 
 def featureCorrespondenceCheck(kptL, kptR, match):
     dispX = kptL.pt[0] - kptR.pt[0]
     dispY = kptL.pt[1] - kptR.pt[1]
-
     if match.distance > confianca or dispX == 0 or abs(dispX) > maxDisp[0] or abs(dispY) > maxDisp[1]:
         return False
     return True
@@ -185,7 +94,7 @@ if __name__ == "__main__":
 
         #Compute the two way matching and clean our vectors
         maxDisp = maxDispStereo
-        matches = twoWayMatch(kptsL, descL, kptsR, descR, featureCorrespondenceCheck)
+        matches = twoWayMatch(flann, kptsL, descL, kptsR, descR, featureCorrespondenceCheck)
         matches, kptsL, descL, kptsR, descR, dists = cleanFeatures(matches, kptsL, descL, kptsR, descR)
 
         coords3D = featuresCoordinates(kptsL, descL, kptsR, descR, dists)
@@ -196,12 +105,19 @@ if __name__ == "__main__":
         if oldCorrespondence != None:
             matchesOld, kptsLOld, descLOld, kptsROld, descROld, coords3DOld = oldCorrespondence
             maxDisp = maxDispTensor
-            matchesN2O = twoWayMatch(kptsL, descL, kptsLOld, descLOld, featureCorrespondenceCheck)
+            matchesN2O = twoWayMatch(flann, kptsL, descL, kptsLOld, descLOld, featureCorrespondenceCheck)
             matchesN2O, kptsLN, descLN, kptsLOld, descLOld, __, coords3DOld = cleanFeatures(matchesN2O, kptsL, descL, kptsLOld, descLOld, coords3DOld)
             imgMN2O = drawFeaturesCorrespondance(imgl, kptsLN, kptsLOld, matchesN2O)
 
-            coords3DOld = np.asarray(coords3DOld)
             kptsLN_np = kpts2np(kptsLN)
+
+            # Python 2.4
+            # rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kptsLN_np, cameraMatrix, None)
+            # flag = False
+            # if len(inliers) > 0:
+            #     flag = True
+
+            # Python 3.x
             flag, rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kptsLN_np, cameraMatrix, None)
             # flag, rvec, tvec = cv2.solvePnP(coords3DOld, kpts2np(kptsL), cameraMatrix, None)
 

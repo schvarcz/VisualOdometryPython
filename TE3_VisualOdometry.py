@@ -19,17 +19,17 @@ flann = cv2.FlannBasedMatcher(index_params,search_params)
 flann = cv2.BFMatcher()
 
 # Python 3.2
-FLANN_INDEX_KDTREE = 0
-index_params = dict(algorithm = FLANN_INDEX_KDTREE)
-search_params = dict(checks=50)
-flann = cv2.FlannBasedMatcher(index_params,search_params)
+# FLANN_INDEX_KDTREE = 0
+# index_params = dict(algorithm = FLANN_INDEX_KDTREE)
+# search_params = dict(checks=50)
+# flann = cv2.FlannBasedMatcher(index_params,search_params)
 
 
 print(cv2.__version__)
-path = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\dataset_libviso\\"
-pathSalvar = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\results\\brisk_orb\\"
-# path = "dataset_libviso/"
-# pathSalvar = "results/trash/"
+# path = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\dataset_libviso\\"
+# pathSalvar = "C:\\Users\\Guilherme\\Dropbox\\Doutorado ENSTA\\visualodometry\\results\\brisk_orb\\"
+path = "./dataset_libviso/"
+pathSalvar = "./results/trash/"
 
 if not os.path.exists(pathSalvar):
     os.mkdir(pathSalvar)
@@ -47,8 +47,8 @@ maxDisp = maxDispStereo
 
 
 # Python 2.4
-# featuredDetector = cv2.Feature2D_create("ORB")
-# featuredDescriptor = cv2.Feature2D_create("ORB")
+# featuredDetector = cv2.Feature2D_create("BRISK")
+# featuredDescriptor = cv2.Feature2D_create("BRISK")
 
 # Python 3.X
 featuredDetector = cv2.BRISK_create()
@@ -69,7 +69,7 @@ def featuresCoordinates(kptsL, descL, kptsR, descR, dists):
         x = (kptsR[idx].pt[0]-cameraMatrix[0,2])*distancia_cameras/dispX
         y = (kptsR[idx].pt[1]-cameraMatrix[1,2])*distancia_cameras/dispX
         z = cameraMatrix[0,0]*distancia_cameras/dispX
-        coords.append([x,y,z])
+        coords.append([[x,y,z]])
     return np.asarray(coords)
 
 def featureCorrespondenceCheck(kptL, kptR, match):
@@ -119,12 +119,15 @@ if __name__ == "__main__":
 
             # Python 3.x
             flag, rvec, tvec, inliers = cv2.solvePnPRansac(coords3DOld, kptsLN_np, cameraMatrix, None)
-            # flag, rvec, tvec = cv2.solvePnP(coords3DOld, kpts2np(kptsL), cameraMatrix, None)
+            # flag, rvec, tvec = cv2.solvePnP(coords3DOld, kptsLN_np, cameraMatrix, None)
 
             if flag:
                 pointsProjected, _ = cv2.projectPoints(coords3DOld, rvec, tvec, cameraMatrix, None)
                 error = cv2.norm(kptsLN_np, pointsProjected, cv2.NORM_L2)/len(pointsProjected)
 
+                print(rvec)
+                print(tvec)
+                print ""
                 [pitch], [yaw], [roll]  = rvec
                 rvec = roll, pitch, yaw
                 for i in range(3):
@@ -161,8 +164,8 @@ if __name__ == "__main__":
                 plt.pause(10)
         plt.clf()
     print(os.getcwd())
-plt.ioff()
+    plt.ioff()
 
-logResults.close()
-drawPyPlot(imgMN2O, IMU, ODO)
-plt.show()
+    logResults.close()
+    drawPyPlot(imgMN2O, IMU, ODO)
+    plt.show()

@@ -52,6 +52,81 @@ def twoWayMatch(flann, kptsL, descL, kptsR, descR, checkFunc = lambda kptL, kptR
                     matchFound = True
     return matches_r
 
+def twoWayMatchAndLoweTest(flann, kptsL, descL, kptsR, descR, checkFunc = lambda kptL, kptR, match: True):
+    """
+    Perform two-way matching among two sets of features and their respectives descriptors
+
+    Keyword arguments:
+
+    flann -- FlannBasedMatcher instance to perform the matching procedure.
+    kptsL -- Keypoints from the left image or, if you are using images from different steps, the newest image.
+    descL -- Respective descriptors from kptsL keypoints.
+    kptsR -- Keypoints from the right image or, if you are using images from different steps, the oldest image.
+    descR -- Respective descriptors from kptsR keypoints.
+    checkFunc -- Final check function to verify a match among two features. Useful to perform any heurist test, like a descriptor distance or euclidean distance thresholds (default: lambda kptL, kptR, match: True)
+
+    Returns list of matches from left to right.
+    """
+    matches_r = []
+    matchesL2R = flann.knnMatch(descL,descR,k=2)
+    matchesR2L = flann.knnMatch(descR,descL,k=2)
+    for mL2R in matchesL2R:
+        matchFound = False
+        if type(mL2R) == list:
+            for i in range(len(mL2R)):
+                iML2R = mL2R[i]
+                if type(matchesR2L[iML2R.trainIdx]) == list:
+                    for iMR2L in matchesR2L[iML2R.trainIdx]:
+                        if iMR2L.trainIdx == iML2R.queryIdx and checkFunc(kptsL[iML2R.queryIdx], kptsR[iML2R.trainIdx], iML2R):
+                            if i < len(mL2R)-1:
+                                m, n = iML2R, mL2R[i+1]
+                                if m.distance < 0.8*n.distance:
+                                    matches_r.append(iML2R)
+                                    matchFound = True
+                                    break
+                            else:
+                                matches_r.append(iML2R)
+                                matchFound = True
+                                break
+                else:
+                    if matchesR2L[iML2R.trainIdx] == iML2R.queryIdx and checkFunc(kptsL[iML2R.queryIdx], kptsR[iML2R.trainIdx], iML2R):
+                        if i < len(mL2R)-1:
+                            m, n = iML2R, mL2R[i+1]
+                            if m.distance < 0.8*n.distance:
+                                matches_r.append(iML2R)
+                                matchFound = True
+                                break
+                        else:
+                            matches_r.append(iML2R)
+                            matchFound = True
+                            break
+                if matchFound :
+                    break
+        elif mL2R != None:
+            if type(matchesR2L[mL2R.trainIdx]) == list:
+                for iMR2L in matchesR2L[mL2R.trainIdx]:
+                    if iMR2L.trainIdx == mL2R.queryIdx and checkFunc(kptsL[mL2R.queryIdx], kptsR[mL2R.trainIdx], mL2R):
+                        matches_r.append(mL2R)
+                        matchFound = True
+                        break
+            else:
+                if matchesR2L[mL2R.trainIdx] == mL2R.queryIdx and checkFunc(kptsL[mL2R.queryIdx], kptsR[mL2R.trainIdx], mL2R):
+                    matches_r.append(mL2R)
+                    matchFound = True
+    return matches_r
+
+def loweMatchingTest(flann, kptsL, descL, kptsR, descR, checkFunc = lambda kptL, kptR, match: True):
+    matches_r = []
+    matchesL2R = flann.knnMatch(descL,descR,k=2)
+    for mL2R in matchesL2R:
+        if len(mL2R) == 2:
+            m, n = mL2R
+            if m.distance < 0.8*n.distance and checkFunc(kptsL[mL2R.queryIdx], kptsR[mL2R.trainIdx], mL2R):
+                matches_r.append(m)
+        else:
+            matches_r.append(mL2R[0])
+    return matches_r
+
 def cleanFeatures(matches, kptsL, descL, kptsR, descR, coords3D = None):
     """
     Clean kptsL, descL, kptsR, descR and coords3D vectors according to the informed matches.
@@ -93,13 +168,30 @@ def cleanInliers(inliers, matches, kptsL, kptsR):
         idx += 1
     return matches_r, kptsL_R, kptsR_R
 
+def cleanInliersFundamentalMat(inliers, matches, kptsL, kptsR):
+    """
+    Clean matches, kptsL and kptsR according to the informed inlier indexes.
+
+    Returns A list for each infromed parameter, except inliers, containing only the respective inliers information.
+    """
+    matches_r, kptsL_R, kptsR_R = [], [], []
+    idx = 0
+    for i in range(len(inliers)):
+        if inliers[i][0] == 1:
+            m = matches[i][0]
+            matches_r.append([cv2.DMatch(idx,idx,m.imgIdx,m.distance)])
+            kptsL_R.append(kptsL[i])
+            kptsR_R.append(kptsR[i])
+            idx += 1
+    return matches_r, kptsL_R, kptsR_R
+
 def kpts2np(kpts):
     """
     Converts keypoints to a numpy matrix to be used with cv2.solvePnP and cv2.solvePnPRansac
     """
     return np.asarray([[kpt.pt] for kpt in kpts])
 
-def drawFeaturesCorrespondance(imgl,kptsL, kptsR, matches, color = (255,0,0)):
+def drawFeaturesCorrespondance(imgl, kptsL, kptsR, matches, color = (255,0,0)):
     img = cv2.drawKeypoints(imgl,kptsL, None)
     for m in matches:
         [m] = m
@@ -132,7 +224,7 @@ def drawPyPlotFeatures(imgM, imgMN2O):
     axImg = plt.subplot(212)
     axImg.imshow(imgMN2O)
 
-def matrixRot(alpha,beta,gama):
+def matrixRot(alpha, beta, gama):
     """
     Computes a rotation matrix in 3D space
 
